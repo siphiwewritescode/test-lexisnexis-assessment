@@ -4,7 +4,7 @@ import logging
 def get_logger(name: str) -> logging.Logger:
     """
     This will create and return a logger with a consistent format.
-    Format: 2023-10-27 12:00:00 | level name | logger name | message
+    Format: YYYY-MM-DD HH:MM:SS | level name | logger name | message
     Prevents double-logging by checking for existing handlers first. 
     """
     logger = logging.getLogger(name)
