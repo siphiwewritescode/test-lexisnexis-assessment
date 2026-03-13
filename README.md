@@ -98,15 +98,23 @@ venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-**4. Create a PostgreSQL database**
-```sql
-CREATE DATABASE test-lexisnexis-assessment;
-```
-
-**5. Configure your environment**
+**4. Configure your environment**
 ```bash
+# Mac/Linux
 cp .env.example .env
-# Edit .env with your database credentials
+
+# Windows
+copy .env.example .env
+```
+Then edit `.env` with your database credentials.
+
+**5. Create a PostgreSQL database and initialise the schema**
+```bash
+# Create the database in pgAdmin or via psql:
+# CREATE DATABASE "test-lexisnexis-assessment";
+
+# Then run the init command to create the tables
+python main.py init
 ```
 
 ---
