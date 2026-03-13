@@ -11,12 +11,15 @@ load_dotenv()
 
 
 def get_db_dsn() -> str:
-    """Build and return the PostgreSQL connection string."""
+    """
+    The hardcoded values below are just fallback defaults. 
+    They only kick in if a variable is missing from the .env file
+    """
     host = os.getenv("DB_HOST", "localhost")
     port = os.getenv("DB_PORT", "5432")
-    name = os.getenv("DB_NAME", "lexisnexis_assessment")
+    name = os.getenv("DB_NAME", "tech_assessment")
     user = os.getenv("DB_USER", "postgres")
-    password = os.getenv("DB_PASSWORD", "root")
+    password = os.getenv("DB_PASSWORD", "")
     return f"host={host} port={port} dbname={name} user={user} password={password}"
 
 
