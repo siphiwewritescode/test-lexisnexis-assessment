@@ -113,7 +113,7 @@ Then edit `.env` with your database credentials.
 # Create the database in pgAdmin or via psql:
 # CREATE DATABASE "test-lexisnexis-assessment";
 
-# Then run the init command to create the tables
+# Then run the init command to create the schema (tables)
 python main.py init
 ```
 
@@ -121,17 +121,10 @@ python main.py init
 
 ## Running the pipeline
 
-**Step 1 — Create the schema (tables)**
-```bash
-python main.py init
-```
-
-**Step 2 — Run the ETL pipeline**
+**Run the ETL pipeline**
 ```bash
 python main.py run
 ```
-
-That's it. Both steps are safe to run multiple times (idempotent).
 
 ---
 
