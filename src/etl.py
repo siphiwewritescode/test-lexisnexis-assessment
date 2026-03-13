@@ -110,7 +110,7 @@ def transform_orders(df: pd.DataFrame, valid_customer_ids: set) -> pd.DataFrame:
     Steps:
     - Parse order_ts to UTC (handles multiple timestamp formats)
     - Drop rows with invalid status values (Filter out records with unrecognised status values. 
-      Logging these to a 'quarantine' list so that someone from the analytics team can investigate
+      Logging these to a 'quarantine' list so that someone from the relevant team can investigate
       why the source system is sending through unrecognised values.)
     - Drop rows referencing customer_ids not in the customers table
     - Cast total_amount to float
@@ -155,7 +155,7 @@ def transform_order_items(df: pd.DataFrame, valid_order_ids: set) -> pd.DataFram
     Clean and validate the order_items DataFrame.
 
     Steps:
-    - Business Logic Check: Drop rows with zero or negative quantity/price (quarantine these for the analytics team).
+    - Business Logic Check: Drop rows with zero or negative quantity/price (quarantine these for the relevant team).
     - Drop rows referencing order_ids not in the orders table
     """
     logger.info("Transforming order_items...")
