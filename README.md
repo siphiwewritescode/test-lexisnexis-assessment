@@ -3,6 +3,57 @@
 
 ---
 
+## Script architecture
+
+```
+┌─────────────┐
+│   main.py   │  Entry point — routes `init` or `run` commands
+└──────┬──────┘
+       │ imports
+       ├──────────────────────────────────────┐
+       ▼                                      ▼
+┌─────────────────┐                  ┌─────────────────┐
+│  src/database.py│                  │   src/etl.py    │
+│                 │                  │                 │
+│ init_schema()   │◄─── `init`       │ run_pipeline()  │◄─── `run`
+│ get_connection()│                  │                 │
+└─────────────────┘                  └────────┬────────┘
+                                              │ imports
+                              ┌───────────────┼───────────────┐
+                              ▼               ▼               ▼
+                     ┌─────────────┐  ┌─────────────┐  ┌──────────────┐
+                     │ src/config  │  │ src/database│  │  src/logger  │
+                     │ .py         │  │ .py         │  │  .py         │
+                     │             │  │             │  │              │
+                     │ get_file_   │  │ get_        │  │ get_logger() │
+                     │ paths()     │  │ connection()│  │              │
+                     └──────┬──────┘  └──────┬──────┘  └──────────────┘
+                            │                │
+                            ▼                ▼
+                     ┌────────────┐   ┌────────────┐
+                     │  .env file │   │ PostgreSQL  │
+                     └────────────┘   └────────────┘
+```
+
+**ETL flow inside `etl.py`:**
+```
+data/customers.csv   ──► extract ──► transform ──► load ──► customers table
+data/orders.jsonl    ──► extract ──► transform ──► load ──► orders table
+data/order_items.csv ──► extract ──► transform ──► load ──► order_items table
+                                                       └──► create_views()
+                                                             (5 SQL views)
+```
+
+| File | Role |
+|---|---|
+| `main.py` | CLI entry point; routes `init` / `run` |
+| `src/database.py` | Schema creation, DB connection |
+| `src/etl.py` | All extract, transform, load, and view logic |
+| `src/config.py` | Reads `.env` for file paths & DB settings |
+| `src/logger.py` | Shared logger used by all modules |
+
+---
+
 ## What this does
 
 A small, maintainable ETL pipeline that:
