@@ -1,6 +1,8 @@
 # LexisNexis Data Engineer Assessment
 ### Orders Data Pipeline — Python + PostgreSQL
 
+A Python ETL pipeline that reads raw orders data (CSV + JSONL), cleans and validates it, loads it into PostgreSQL, and creates SQL views for analytics and data quality monitoring.
+
 ---
 
 ## Script architecture
