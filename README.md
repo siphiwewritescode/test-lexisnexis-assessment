@@ -76,13 +76,7 @@ A small, maintainable ETL pipeline that:
 
 ## Setup
 
-**1. Clone the repo**
-```bash
-git clone <your-repo-url>
-cd test-lexisnexis-assessment
-```
-
-**2. Create and activate a virtual environment**
+**1. Create and activate a virtual environment**
 ```bash
 python -m venv venv
 
@@ -93,12 +87,12 @@ source venv/bin/activate
 venv\Scripts\activate
 ```
 
-**3. Install dependencies**
+**2. Install dependencies**
 ```bash
 pip install -r requirements.txt
 ```
 
-**4. Configure your environment**
+**3. Configure your environment**
 ```bash
 # Mac/Linux
 cp .env.example .env
@@ -108,7 +102,7 @@ copy .env.example .env
 ```
 Then edit `.env` with your database credentials.
 
-**5. Create a PostgreSQL database and initialise the schema**
+**4. Create a PostgreSQL database and initialise the schema**
 ```bash
 # Create the database in pgAdmin or via psql:
 # CREATE DATABASE "test-lexisnexis-assessment";
