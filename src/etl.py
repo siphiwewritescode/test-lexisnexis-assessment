@@ -6,6 +6,7 @@ The main ETL pipeline. Three stages I have done:
 """
 
 import io
+import re
 import time
 import json
 import pandas as pd
@@ -15,9 +16,6 @@ from src.database import get_connection
 from src.logger import get_logger
 
 logger = get_logger("etl")
-
-VALID_STATUSES = {"placed", "shipped", "cancelled", "refunded"}
-
 
 # EXTRACT
 
@@ -62,7 +60,7 @@ def transform_customers(df: pd.DataFrame) -> pd.DataFrame:
 
     Notes on decisions made in this function:
     - Normalise email to lowercase
-    - Drop rows with invalid emails (an email must contain @)
+    - Drop rows with invalid emails (validated with regex pattern)
     - Resolve duplicate emails by keeping the latest signup_date
     - Parse signup_date to a proper date type (UTC)
     - Fill missing country_code with None (It will be null in the database)
@@ -73,8 +71,9 @@ def transform_customers(df: pd.DataFrame) -> pd.DataFrame:
     # Normalise email to lowercase
     df["email"] = df["email"].str.lower().str.strip()
 
-    # Drop rows where email doesn't contain @ — these are invalid
-    invalid_email_mask = ~df["email"].str.contains("@", na=False)
+    # Drop rows with invalid email format (must match user@domain.tld)
+    email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    invalid_email_mask = ~df["email"].str.match(email_pattern, na=False)
     invalid_emails = df[invalid_email_mask]
     if len(invalid_emails) > 0:
         logger.warning(
@@ -123,6 +122,7 @@ def transform_orders(df: pd.DataFrame, valid_customer_ids: set) -> pd.DataFrame:
     df["order_ts"] = pd.to_datetime(df["order_ts"], utc=True, format="mixed")
 
     # Filter out invalid status values
+    VALID_STATUSES = {"placed", "shipped", "cancelled", "refunded"}
     invalid_status_mask = ~df["status"].isin(VALID_STATUSES)
     invalid_statuses = df[invalid_status_mask]
     if len(invalid_statuses) > 0:
