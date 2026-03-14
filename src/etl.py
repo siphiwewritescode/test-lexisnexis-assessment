@@ -63,7 +63,7 @@ def transform_customers(df: pd.DataFrame) -> pd.DataFrame:
     Notes on decisions made in this function:
     - Normalise email to lowercase
     - Drop rows with invalid emails (an email must contain @)
-    - Resolve duplicate emails by keeping the earliest signup_date
+    - Resolve duplicate emails by keeping the latest signup_date
     - Parse signup_date to a proper date type (UTC)
     - Fill missing country_code with None (It will be null in the database)
     """
@@ -86,12 +86,12 @@ def transform_customers(df: pd.DataFrame) -> pd.DataFrame:
     # Parse signup_date
     df["signup_date"] = pd.to_datetime(df["signup_date"]).dt.date
 
-    # Resolve duplicate emails — keep the row with the earliest signup_date.
-    # Decision: earliest signup is most likely the original account.
-    df = df.sort_values("signup_date").drop_duplicates(subset=["email"], keep="first")
+    # Resolve duplicate emails — keep the row with the latest signup_date.
+    # Decision: the most recent record is most likely to have up-to-date information.
+    df = df.sort_values("signup_date").drop_duplicates(subset=["email"], keep="last")
     duplicates_removed = start_count - len(invalid_emails) - len(df)
     if duplicates_removed > 0:
-        logger.warning(f"  Removed {duplicates_removed} duplicate email(s), kept earliest signup.")
+        logger.warning(f"  Removed {duplicates_removed} duplicate email(s), kept latest signup.")
 
     # Replace empty/NaN country_code with None so it stores as NULL
     df["country_code"] = df["country_code"].where(df["country_code"].notna(), None)

@@ -21,11 +21,9 @@
 ## ETL decisions
 
 ### Duplicate emails (customers)
-**Decision: keep the earliest signup_date, drop the rest.**
+**Decision: keep the latest signup_date, drop the rest.**
 
-Reasoning: the earliest record is most likely the original account. I sort by signup_date ascending and use `drop_duplicates(keep="first")`. This is deterministic and easy to explain.
-
-Alternative I considered: keep the most recent record. I decided against this because a newer signup could be an attempted re-registration, not the authoritative record.
+Reasoning: the most recent record is most likely to have up-to-date information. I sort by signup_date ascending and use `drop_duplicates(keep="last")`. This is deterministic and easy to explain.
 
 ### Invalid emails (no @ sign)
 **Decision: drop and log.**
@@ -87,4 +85,4 @@ All views are created with `CREATE OR REPLACE VIEW` so they stay current without
 - A quarantine table to persist rejected rows rather than just logging them
 - Unit tests for each transform function
 - Docker Compose setup so reviewers don't need to install PostgreSQL manually
-- The optional agentic REPORT.md generation using the Anthropic API
+- The optional agentic REPORT.md generation
