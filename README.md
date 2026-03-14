@@ -9,7 +9,7 @@ A Python ETL pipeline that reads raw orders data (CSV + JSONL), cleans and valid
 
 ```
 ┌─────────────┐
-│   main.py   │  Entry point — routes `init` or `run` commands
+│   main.py   │  Entry point — runs init + ETL pipeline
 └──────┬──────┘
        │ imports
        ├──────────────────────────────────────┐
@@ -17,7 +17,7 @@ A Python ETL pipeline that reads raw orders data (CSV + JSONL), cleans and valid
 ┌─────────────────┐                  ┌─────────────────┐
 │  src/database.py│                  │   src/etl.py    │
 │                 │                  │                 │
-│ init_schema()   │◄─── `init`       │ run_pipeline()  │◄─── `run`
+│ init_schema()   │                  │ run_pipeline()  │
 │ get_connection()│                  │                 │
 └─────────────────┘                  └────────┬────────┘
                                               │ imports
@@ -48,7 +48,7 @@ data/order_items.csv ──► extract ──► transform ──► load ──
 
 | File | Role |
 |---|---|
-| `main.py` | CLI entry point; routes `init` / `run` |
+| `main.py` | Entry point; runs schema init + ETL pipeline |
 | `src/database.py` | Schema creation, DB connection |
 | `src/etl.py` | All extract, transform, load, and view logic |
 | `src/config.py` | Reads `.env` for file paths & DB settings |
@@ -102,23 +102,21 @@ copy .env.example .env
 ```
 Then edit `.env` with your database credentials.
 
-**4. Create a PostgreSQL database and initialise the schema**
+**4. Create a PostgreSQL database**
 ```bash
 # Create the database in pgAdmin or via psql:
 # CREATE DATABASE "test-lexisnexis-assessment";
-
-# Then run the init command to create the schema (tables)
-python main.py init
 ```
 
 ---
 
 ## Running the pipeline
 
-**Run the ETL pipeline**
+**Run the pipeline**
 ```bash
-python main.py run
+python main.py
 ```
+This will create the schema (if it doesn't exist) and run the full ETL pipeline.
 
 ---
 
@@ -134,7 +132,7 @@ python main.py run
 │   ├── database.py        # Connection + schema creation
 │   ├── etl.py             # Extract, Transform, Load logic + views
 │   └── logger.py          # Logging setup
-├── main.py                # Entry point (init / run)
+├── main.py                # Entry point
 ├── requirements.txt
 ├── .env.example
 ├── README.md

@@ -1,10 +1,9 @@
 """
 Single entry point for the pipeline.
 
-python main.py run - Run the full ETL pipeline
+python main.py - Initialises the schema and runs the full ETL pipeline
 """
 
-import sys
 from src.database import init_schema
 from src.etl import run_pipeline
 from src.logger import get_logger
