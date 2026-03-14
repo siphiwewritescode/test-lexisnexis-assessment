@@ -38,7 +38,8 @@ def init_schema():
             signup_date  DATE NOT NULL,
             country_code CHAR(2),
             is_active    BOOLEAN NOT NULL DEFAULT true,
-            CONSTRAINT customers_email_unique UNIQUE (email)
+            CONSTRAINT customers_email_unique UNIQUE (email),
+            CONSTRAINT customers_email_lowercase CHECK (email = LOWER(email))
         );
 
         -- Orders table
