@@ -52,9 +52,41 @@ def extract_order_items(path: str) -> pd.DataFrame:
     return df
 
 
+# Valid order statuses — defined at module level so tests can reference it too
+VALID_STATUSES = {"placed", "shipped", "cancelled", "refunded"}
+
+
+# QUARANTINE HELPER
+
+def quarantine_rows(df: pd.DataFrame, source_table: str, reason: str) -> list[dict]:
+    """
+    Convert a DataFrame of rejected rows into a list of quarantine record dicts.
+    Each dict has source_table, reason, and row_data (the row as a JSON-safe dict).
+    """
+    records = []
+    for _, row in df.iterrows():
+        row_dict = {}
+        for col, val in row.items():
+            # Convert numpy/pandas types to native Python types for JSON
+            if pd.isna(val):
+                row_dict[col] = None
+            elif hasattr(val, "item"):
+                row_dict[col] = val.item()
+            elif hasattr(val, "isoformat"):
+                row_dict[col] = val.isoformat()
+            else:
+                row_dict[col] = val
+        records.append({
+            "source_table": source_table,
+            "reason": reason,
+            "row_data": row_dict,
+        })
+    return records
+
+
 # TRANSFORM
 
-def transform_customers(df: pd.DataFrame) -> pd.DataFrame:
+def transform_customers(df: pd.DataFrame) -> tuple[pd.DataFrame, list[dict]]:
     """
     Clean and validate the customers DataFrame.
 
@@ -67,6 +99,7 @@ def transform_customers(df: pd.DataFrame) -> pd.DataFrame:
     """
     logger.info("Transforming customers...")
     start_count = len(df)
+    quarantine_records = []
 
     # Normalise email to lowercase
     df["email"] = df["email"].str.lower().str.strip()
@@ -80,6 +113,7 @@ def transform_customers(df: pd.DataFrame) -> pd.DataFrame:
             f"  Dropping {len(invalid_emails)} row(s) with invalid email: "
             + str(invalid_emails["email"].tolist())
         )
+        quarantine_records.extend(quarantine_rows(invalid_emails, "customers", "invalid_email"))
     df = df[~invalid_email_mask].copy()
 
     # Parse signup_date
@@ -87,10 +121,14 @@ def transform_customers(df: pd.DataFrame) -> pd.DataFrame:
 
     # Resolve duplicate emails — keep the row with the latest signup_date.
     # Decision: the most recent record is most likely to have up-to-date information.
-    df = df.sort_values("signup_date").drop_duplicates(subset=["email"], keep="last")
-    duplicates_removed = start_count - len(invalid_emails) - len(df)
-    if duplicates_removed > 0:
-        logger.warning(f"  Removed {duplicates_removed} duplicate email(s), kept latest signup.")
+    df_sorted = df.sort_values("signup_date")
+    df_deduped = df_sorted.drop_duplicates(subset=["email"], keep="last")
+    duplicate_mask = ~df_sorted.index.isin(df_deduped.index)
+    duplicates = df_sorted[duplicate_mask]
+    if len(duplicates) > 0:
+        logger.warning(f"  Removed {len(duplicates)} duplicate email(s), kept latest signup.")
+        quarantine_records.extend(quarantine_rows(duplicates, "customers", "duplicate_email"))
+    df = df_deduped
 
     # Replace empty/NaN country_code with None so it stores as NULL
     df["country_code"] = df["country_code"].where(df["country_code"].notna(), None)
@@ -99,16 +137,16 @@ def transform_customers(df: pd.DataFrame) -> pd.DataFrame:
     df["is_active"] = df["is_active"].astype(bool)
 
     logger.info(f"  Customers after cleaning: {len(df)} (started with {start_count})")
-    return df.reset_index(drop=True)
+    return df.reset_index(drop=True), quarantine_records
 
 
-def transform_orders(df: pd.DataFrame, valid_customer_ids: set) -> pd.DataFrame:
+def transform_orders(df: pd.DataFrame, valid_customer_ids: set) -> tuple[pd.DataFrame, list[dict]]:
     """
     Clean and validate the orders DataFrame.
 
     Steps:
     - Parse order_ts to UTC (handles multiple timestamp formats)
-    - Drop rows with invalid status values (Filter out records with unrecognised status values. 
+    - Drop rows with invalid status values (Filter out records with unrecognised status values.
       Logging these to a 'quarantine' list so that someone from the relevant team can investigate
       why the source system is sending through unrecognised values.)
     - Drop rows referencing customer_ids not in the customers table
@@ -116,13 +154,13 @@ def transform_orders(df: pd.DataFrame, valid_customer_ids: set) -> pd.DataFrame:
     """
     logger.info("Transforming orders...")
     start_count = len(df)
+    quarantine_records = []
 
     # Standardising timestamps: 'mixed' lets Pandas handle different incoming date formats.
     # utc=True converts everything to UTC regardless of the original timezone
     df["order_ts"] = pd.to_datetime(df["order_ts"], utc=True, format="mixed")
 
     # Filter out invalid status values
-    VALID_STATUSES = {"placed", "shipped", "cancelled", "refunded"}
     invalid_status_mask = ~df["status"].isin(VALID_STATUSES)
     invalid_statuses = df[invalid_status_mask]
     if len(invalid_statuses) > 0:
@@ -130,6 +168,7 @@ def transform_orders(df: pd.DataFrame, valid_customer_ids: set) -> pd.DataFrame:
             f"  Quarantining {len(invalid_statuses)} order(s) with invalid status: "
             + str(invalid_statuses[["order_id", "status"]].values.tolist())
         )
+        quarantine_records.extend(quarantine_rows(invalid_statuses, "orders", "invalid_status"))
     df = df[~invalid_status_mask].copy()
 
     # Drop orders that reference a customer_id not in our customers table.
@@ -141,16 +180,17 @@ def transform_orders(df: pd.DataFrame, valid_customer_ids: set) -> pd.DataFrame:
             f"  Dropping {len(orphans)} order(s) referencing unknown customer_ids: "
             + str(orphans["customer_id"].tolist())
         )
+        quarantine_records.extend(quarantine_rows(orphans, "orders", "orphan_customer"))
     df = df[~orphan_mask].copy()
 
     # Cast total_amount to float (numeric in the database)
     df["total_amount"] = df["total_amount"].astype(float)
 
     logger.info(f"  Orders after cleaning: {len(df)} (started with {start_count})")
-    return df.reset_index(drop=True)
+    return df.reset_index(drop=True), quarantine_records
 
 
-def transform_order_items(df: pd.DataFrame, valid_order_ids: set) -> pd.DataFrame:
+def transform_order_items(df: pd.DataFrame, valid_order_ids: set) -> tuple[pd.DataFrame, list[dict]]:
     """
     Clean and validate the order_items DataFrame.
 
@@ -160,6 +200,7 @@ def transform_order_items(df: pd.DataFrame, valid_order_ids: set) -> pd.DataFram
     """
     logger.info("Transforming order_items...")
     start_count = len(df)
+    quarantine_records = []
 
     # Drop rows where quantity <= 0 or unit_price <= 0
     # Decision: filter rather than fix — we don't know what the correct value should be
@@ -170,6 +211,7 @@ def transform_order_items(df: pd.DataFrame, valid_order_ids: set) -> pd.DataFram
             f"  Dropping {len(bad_rows)} order_item(s) with non-positive quantity or price: "
             + str(bad_rows[["order_id", "line_no", "quantity", "unit_price"]].values.tolist())
         )
+        quarantine_records.extend(quarantine_rows(bad_rows, "order_items", "invalid_quantity_or_price"))
     df = df[~bad_values_mask].copy()
 
     # Drop items referencing orders that weren't loaded
@@ -180,12 +222,13 @@ def transform_order_items(df: pd.DataFrame, valid_order_ids: set) -> pd.DataFram
             f"  Dropping {len(orphans)} order_item(s) referencing unknown order_ids: "
             + str(orphans["order_id"].tolist())
         )
+        quarantine_records.extend(quarantine_rows(orphans, "order_items", "orphan_order"))
     df = df[~orphan_mask].copy()
 
     df["unit_price"] = df["unit_price"].astype(float)
 
     logger.info(f"  Order items after cleaning: {len(df)} (started with {start_count})")
-    return df.reset_index(drop=True)
+    return df.reset_index(drop=True), quarantine_records
 
 
 # LOAD
@@ -270,6 +313,28 @@ def load_order_items(conn, df: pd.DataFrame):
         """)
         logger.info(f"  Order items loaded successfully.")
 
+def load_quarantine(conn, records: list[dict]):
+    """
+    Insert quarantine records into the quarantine table.
+    Uses simple INSERT statements since quarantine volumes are small.
+    """
+    if not records:
+        logger.info("No quarantine records to load.")
+        return
+
+    logger.info(f"Loading {len(records)} quarantine record(s)...")
+    with conn.cursor() as cur:
+        for rec in records:
+            cur.execute(
+                """
+                INSERT INTO quarantine (source_table, reason, row_data)
+                VALUES (%s, %s, %s::jsonb)
+                """,
+                (rec["source_table"], rec["reason"], json.dumps(rec["row_data"])),
+            )
+    logger.info("  Quarantine records loaded successfully.")
+
+
 # VIEWS
 
 def create_views(conn):
@@ -322,30 +387,44 @@ def create_views(conn):
         ORDER BY total_revenue DESC
         LIMIT 10;
 
-        -- DATA QUALITY VIEWS
+        -- DATA QUALITY VIEWS (sourced from the quarantine table)
+        -- Drop old versions first — column names changed from the original definitions
+        DROP VIEW IF EXISTS vw_dq_duplicate_emails;
+        DROP VIEW IF EXISTS vw_dq_orphan_orders;
 
-        -- 4. Duplicate customers by lowercase email (identifies conflicts in source data)
+        -- 4. Duplicate emails that were quarantined during ETL
         CREATE OR REPLACE VIEW vw_dq_duplicate_emails AS
         SELECT
-            email,
-            COUNT(*)                                AS duplicate_count,
-            STRING_AGG(customer_id::TEXT, ', ')     AS customer_ids,
-            MIN(signup_date)                        AS earliest_signup
-        FROM customers
-        GROUP BY email
-        HAVING COUNT(*) > 1;
+            row_data->>'email'                      AS email,
+            row_data->>'customer_id'                AS customer_id,
+            row_data->>'full_name'                  AS full_name,
+            row_data->>'signup_date'                AS signup_date,
+            quarantined_at
+        FROM quarantine
+        WHERE reason = 'duplicate_email';
 
-        -- 5. Orders referencing customer_ids that don't exist in the customers table
+        -- 5. Orders with orphan customer_ids that were quarantined during ETL
         CREATE OR REPLACE VIEW vw_dq_orphan_orders AS
         SELECT
-            o.order_id,
-            o.customer_id,
-            o.order_ts,
-            o.status,
-            o.total_amount
-        FROM orders o
-        LEFT JOIN customers c ON o.customer_id = c.customer_id
-        WHERE c.customer_id IS NULL;
+            (row_data->>'order_id')::BIGINT         AS order_id,
+            (row_data->>'customer_id')::INTEGER     AS customer_id,
+            row_data->>'status'                     AS status,
+            (row_data->>'total_amount')::NUMERIC    AS total_amount,
+            quarantined_at
+        FROM quarantine
+        WHERE reason = 'orphan_customer';
+
+        -- 6. Summary of all quarantined records by source table and reason
+        CREATE OR REPLACE VIEW vw_dq_quarantine_summary AS
+        SELECT
+            source_table,
+            reason,
+            COUNT(*)                                AS record_count,
+            MIN(quarantined_at)                     AS earliest,
+            MAX(quarantined_at)                     AS latest
+        FROM quarantine
+        GROUP BY source_table, reason
+        ORDER BY source_table, reason;
     """
 
     with conn.cursor() as cur:
@@ -372,19 +451,23 @@ def run_pipeline():
     raw_order_items = extract_order_items(paths["order_items"])
 
     # --- TRANSFORM ---
-    clean_customers = transform_customers(raw_customers)
+    clean_customers, q_customers = transform_customers(raw_customers)
     valid_customer_ids = set(clean_customers["customer_id"].tolist())
 
-    clean_orders = transform_orders(raw_orders, valid_customer_ids)
+    clean_orders, q_orders = transform_orders(raw_orders, valid_customer_ids)
     valid_order_ids = set(clean_orders["order_id"].tolist())
 
-    clean_order_items = transform_order_items(raw_order_items, valid_order_ids)
+    clean_order_items, q_order_items = transform_order_items(raw_order_items, valid_order_ids)
+
+    # Combine all quarantine records
+    all_quarantine = q_customers + q_orders + q_order_items
 
     # --- LOAD ---
     with get_connection() as conn:
         load_customers(conn, clean_customers)
         load_orders(conn, clean_orders)
         load_order_items(conn, clean_order_items)
+        load_quarantine(conn, all_quarantine)
         conn.commit()
         create_views(conn)
 
