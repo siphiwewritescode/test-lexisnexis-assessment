@@ -51,3 +51,29 @@ A log of the prompts I used with Claude Code to iteratively improve this project
 > Python main.py failed to run, please check it out
 
 > Please execute pytest tests/ it failed to run, there was an error
+
+---
+
+### Documentation and project setup
+
+> Create a diagram of how the python scripts relate to one another and what they do. Make it brief.
+
+> Add the diagram to the README at the top.
+
+> Add a brief summary of the project at the top of the README.
+
+> Add pycache to gitignore.
+
+> Set up venv for this project.
+
+> Add venv setup and how to activate your venv to the README.
+
+> Update README setup steps — clarify database creation step and link it to `python main.py init`.
+
+> Fix README to show Windows `copy` command alongside Mac/Linux `cp`.
+
+> Change "analytics team" to "relevant team" in the ETL quarantine docstrings.
+
+> Update SOLUTION.md "What I would add with more time" section to reflect what has been implemented.
+
+> Document all my prompts into a PROMPTS.md file.
