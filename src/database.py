@@ -15,7 +15,11 @@ logger = get_logger("database")
 def get_connection():
     """Open and return a psycopg v3 connection."""
     dsn = get_db_dsn()
-    return psycopg.connect(dsn)
+    try:
+        return psycopg.connect(dsn)
+    except psycopg.OperationalError as e:
+        logger.error(f"Failed to connect to the database: {e}")
+        raise
 
 
 def init_schema():
@@ -73,11 +77,25 @@ def init_schema():
             CONSTRAINT order_items_quantity_positive CHECK (quantity > 0),
             CONSTRAINT order_items_price_positive CHECK (unit_price > 0)
         );
+
+        -- Quarantine table
+        -- Stores rows rejected during ETL so they can be investigated later.
+        CREATE TABLE IF NOT EXISTS quarantine (
+            id              SERIAL PRIMARY KEY,
+            source_table    TEXT NOT NULL,
+            reason          TEXT NOT NULL,
+            row_data        JSONB NOT NULL,
+            quarantined_at  TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+        );
     """
 
-    with get_connection() as conn:
-        with conn.cursor() as cur:
-            cur.execute(schema_sql)
-        conn.commit()
+    try:
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(schema_sql)
+            conn.commit()
+    except psycopg.Error as e:
+        logger.error(f"Failed to create database schema: {e}")
+        raise
 
     logger.info("Schema set up successfully.")
