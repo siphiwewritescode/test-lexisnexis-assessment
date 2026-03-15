@@ -44,8 +44,10 @@ A Python ETL pipeline that reads raw orders data (CSV + JSONL), cleans and valid
 data/customers.csv   ──► extract ──► transform ──► load ──► customers table
 data/orders.jsonl    ──► extract ──► transform ──► load ──► orders table
 data/order_items.csv ──► extract ──► transform ──► load ──► order_items table
-                                                       └──► create_views()
-                                                             (5 SQL views)
+                                          │            ├──► quarantine table
+                                          │            └──► create_views()
+                                          │                  (6 SQL views)
+                                          └──► rejected rows logged + quarantined
 ```
 
 | File | Role |
@@ -122,6 +124,18 @@ This will create the schema (if it doesn't exist) and run the full ETL pipeline.
 
 ---
 
+## Running with Docker
+
+If you don't want to install PostgreSQL locally, you can run everything with Docker:
+
+```bash
+docker compose up --build
+```
+
+This starts a PostgreSQL container and runs the ETL pipeline automatically. No local database setup needed.
+
+---
+
 ## Project structure
 
 ```
@@ -134,7 +148,12 @@ This will create the schema (if it doesn't exist) and run the full ETL pipeline.
 │   ├── database.py        # Connection + schema creation
 │   ├── etl.py             # Extract, Transform, Load logic + views
 │   └── logger.py          # Logging setup
+├── tests/
+│   ├── conftest.py        # Path setup for imports
+│   └── test_transforms.py # Unit tests for transform functions
 ├── main.py                # Entry point
+├── Dockerfile             # Container image for the pipeline
+├── docker-compose.yml     # Runs pipeline + PostgreSQL together
 ├── requirements.txt
 ├── .env.example
 ├── README.md

@@ -21,14 +21,14 @@
 ## ETL decisions
 
 ### Duplicate emails (customers)
-**Decision: keep the latest signup_date, drop the rest.**
+**Decision: keep the latest signup_date, quarantine the rest.**
 
-Reasoning: the most recent record is most likely to have up-to-date information. I sort by signup_date ascending and use `drop_duplicates(keep="last")`. This is deterministic and easy to explain.
+Reasoning: the most recent record is most likely to have up-to-date information. I sort by signup_date ascending and use `drop_duplicates(keep="last")`. Duplicate records are persisted to the quarantine table for investigation. This is deterministic and easy to explain.
 
-### Invalid emails (no @ sign)
-**Decision: drop and log.**
+### Invalid emails (regex validation)
+**Decision: drop, log, and quarantine.**
 
-An email with no `@` cannot be normalized or matched against anything — it's unusable data. I log the dropped rows so they can be investigated at the source.
+Emails are validated against the regex pattern `^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$` which ensures proper format with a domain and at least a 2-letter TLD. Invalid emails are unusable data — they're logged, quarantined, and can be investigated at the source.
 
 ### Invalid order status values (e.g. "processing")
 **Decision: quarantine (drop) and log.**
@@ -78,12 +78,20 @@ All views are created with `CREATE OR REPLACE VIEW` so they stay current without
 - **vw_top_customers** — uses a window function (`RANK()`) to rank by spend. Ties would get the same rank.
 - **vw_top_skus** — revenue calculated as `quantity * unit_price` per line item, aggregated per SKU.
 
+## Data quality views
+
+These views query the `quarantine` table where rejected rows are persisted during ETL.
+
+- **vw_dq_duplicate_emails** — shows customer records that were dropped as duplicates.
+- **vw_dq_orphan_orders** — shows orders that referenced customer_ids not in the customers table.
+- **vw_dq_quarantine_summary** — summary of all quarantined records grouped by source table and reason.
+
 ---
 
 ## What I would add with more time
 
-- A quarantine table to persist rejected rows rather than just logging them then load to the relevant views
-- Unit tests for each transform function
-- Exception handling for database.py
-- Docker Compose setup so reviewers don't need to install PostgreSQL manually
+- ~~A quarantine table to persist rejected rows rather than just logging them then load to the relevant views~~ (Done — quarantine table and updated DQ views are now implemented)
+- ~~Unit tests for each transform function~~ (Done — 24 tests in tests/test_transforms.py)
+- ~~Exception handling for database.py~~ (Done — error handling in get_connection() and init_schema())
+- ~~Docker Compose setup so reviewers don't need to install PostgreSQL manually~~ (Done — Dockerfile + docker-compose.yml added)
 - The optional agentic REPORT.md generation
