@@ -82,7 +82,8 @@ All views are created with `CREATE OR REPLACE VIEW` so they stay current without
 
 ## What I would add with more time
 
-- A quarantine table to persist rejected rows rather than just logging them
+- A quarantine table to persist rejected rows rather than just logging them then load to the relevant views
 - Unit tests for each transform function
+- Exception handling for database.py
 - Docker Compose setup so reviewers don't need to install PostgreSQL manually
 - The optional agentic REPORT.md generation
